@@ -66,6 +66,23 @@ if not st.session_state.logged_in:
 # PAGE CONFIG
 # -------------------------
 
+# -------------------------
+# GLOBAL SESSION STATE INIT
+# -------------------------
+
+defaults = {
+    "chat_history": [],
+    "quiz_data": None,
+    "quiz_answers": {},
+    "quiz_submitted": False,
+    "quiz_score": 0,
+    "quiz_total": 0,
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
 st.set_page_config(
     page_title="Study Buddy",
     page_icon="📚",
