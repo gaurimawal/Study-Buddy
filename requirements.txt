@@ -1,2 +1,5 @@
 google-generativeai
 matplotlib
+streamlit
+python-dotenv
+google-genai
