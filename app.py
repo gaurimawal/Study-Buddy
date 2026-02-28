@@ -318,11 +318,15 @@ def quiz_generator():
 # ---------------------------------------------------
 # NOTES GENERATOR MODE
 # ---------------------------------------------------
-
 def notes_generator():
 
     st.subheader("📖 Notes Generator")
 
+    # Initialize session state for notes
+    if "generated_notes" not in st.session_state:
+        st.session_state.generated_notes = None
+
+    # Generate Notes Button
     if st.button("Generate Notes"):
 
         if not subject or not topic:
@@ -339,20 +343,33 @@ def notes_generator():
         with st.spinner("Generating notes..."):
             notes = generate_response(prompt)
 
+        # Save notes in session state
+        st.session_state.generated_notes = notes
+
+        # Update progress
         update_notes(subject)
 
+        # Save in history
         st.session_state.chat_history.append(
             ("AI Notes", notes)
         )
 
+        st.success("Notes generated successfully! ✅")
+
+    # Display Notes if exist
+    if st.session_state.generated_notes:
+
+        st.markdown("---")
+        st.markdown("### 📄 Generated Notes")
+        st.markdown(st.session_state.generated_notes)
+
+        # Download Button (always visible after generation)
         st.download_button(
-            "Download Notes",
-            notes,
-            f"{subject}_{topic}.txt"
+            label="⬇ Download Notes",
+            data=st.session_state.generated_notes,
+            file_name=f"{subject}_{topic}_notes.txt",
+            mime="text/plain"
         )
-
-        st.success("Notes generated!")
-
 
 # ---------------------------------------------------
 # ROUTING BASED ON MODE
