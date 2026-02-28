@@ -1,33 +1,75 @@
 # app.py
-from database.auth import login, signup
-from database.progress_tracker import update_question, update_quiz, update_notes
-from utils import parse_quiz
+
 import streamlit as st
-#from core.hf_client import generate_response
+
+# Database
+from database.auth import login, signup
+from database.progress_tracker import (
+    update_question,
+    update_quiz,
+    update_notes
+)
+
+# Core AI
 from core.gemini_client import generate_response
+
+# Prompt builders
 from core.prompt_builder import (
     build_explanation_prompt,
     build_quiz_prompt,
     build_notes_prompt,
 )
-# -------------------------
+
+# Utils
+from utils import parse_quiz
+
+
+# ---------------------------------------------------
+# PAGE CONFIG (MUST BE FIRST STREAMLIT COMMAND)
+# ---------------------------------------------------
+
+st.set_page_config(
+    page_title="AI Study Buddy",
+    page_icon="📚",
+    layout="wide"
+)
+
+
+# ---------------------------------------------------
+# SESSION STATE INITIALIZATION
+# ---------------------------------------------------
+
+defaults = {
+
+    "logged_in": False,
+    "username": "",
+
+    "chat_history": [],
+
+    "quiz_data": None,
+    "quiz_answers": {},
+    "quiz_submitted": False,
+    "quiz_score": 0,
+    "quiz_total": 0,
+
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+# ---------------------------------------------------
 # LOGIN SYSTEM
-# -------------------------
+# ---------------------------------------------------
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-if "username" not in st.session_state:
-    st.session_state.username = ""
-
-
-if not st.session_state.logged_in:
+def show_login():
 
     st.title("🔐 Login - AI Study Buddy")
 
     tab1, tab2 = st.tabs(["Login", "Signup"])
 
-    # LOGIN TAB
+    # LOGIN
     with tab1:
 
         username = st.text_input("Username")
@@ -38,70 +80,49 @@ if not st.session_state.logged_in:
             success, message = login(username, password)
 
             if success:
+
                 st.session_state.logged_in = True
                 st.session_state.username = username
+
                 st.success("Login successful")
                 st.rerun()
+
             else:
                 st.error(message)
 
-
-    # SIGNUP TAB
+    # SIGNUP
     with tab2:
 
-        new_username = st.text_input("Create Username")
-        new_password = st.text_input("Create Password", type="password")
+        new_user = st.text_input("Create Username")
+        new_pass = st.text_input("Create Password", type="password")
 
         if st.button("Signup"):
 
-            success, message = signup(new_username, new_password)
+            success, message = signup(new_user, new_pass)
 
             if success:
                 st.success(message)
             else:
                 st.error(message)
 
+
+# STOP IF NOT LOGGED IN
+if not st.session_state.logged_in:
+    show_login()
     st.stop()
-# -------------------------
-# PAGE CONFIG
-# -------------------------
 
-# -------------------------
-# GLOBAL SESSION STATE INIT
-# -------------------------
 
-defaults = {
-    "chat_history": [],
-    "quiz_data": None,
-    "quiz_answers": {},
-    "quiz_submitted": False,
-    "quiz_score": 0,
-    "quiz_total": 0,
-}
-
-for key, value in defaults.items():
-    if key not in st.session_state:
-        st.session_state[key] = value
-
-st.set_page_config(
-    page_title="Study Buddy",
-    page_icon="📚",
-    layout="wide"
-)
+# ---------------------------------------------------
+# MAIN APP UI
+# ---------------------------------------------------
 
 st.title("📚 Universal AI Study Buddy")
-st.caption("Your Personalized Learning Assistant ")
+st.caption("Your Personalized Learning Assistant 🤖")
 
-# -------------------------
-# SESSION STATE FOR CHAT HISTORY
-# -------------------------
 
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-# -------------------------
-# SIDEBAR - STUDY CONTEXT
-# -------------------------
+# ---------------------------------------------------
+# SIDEBAR
+# ---------------------------------------------------
 
 st.sidebar.header("Study Context")
 
@@ -110,252 +131,270 @@ education_level = st.sidebar.selectbox(
     ["School", "College", "Competitive Exam", "Programming", "Other"]
 )
 
-subject = st.sidebar.text_input("Subject", placeholder="Example: Physics")
+subject = st.sidebar.text_input("Subject")
 
-topic = st.sidebar.text_input("Topic", placeholder="Example: Newton's Laws")
+topic = st.sidebar.text_input("Topic")
 
 mode = st.sidebar.radio(
     "Select Mode",
-    ["Doubt Solver", "Quiz Generator", "Notes Generator"]
+    [
+        "Doubt Solver",
+        "Quiz Generator",
+        "Notes Generator"
+    ]
 )
 
+st.sidebar.divider()
 
-# -------------------------
-# MAIN AREA
-# -------------------------
+st.sidebar.write(f"👤 Logged in as: {st.session_state.username}")
 
-# DOUBT SOLVER
-if mode == "Doubt Solver":
-    
+if st.sidebar.button("Logout"):
+
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+
+    st.rerun()
+
+
+# ---------------------------------------------------
+# DOUBT SOLVER MODE
+# ---------------------------------------------------
+
+def doubt_solver():
+
     st.subheader("❓ Ask Your Doubt")
 
-    user_question = st.text_area(
-        "Enter your question:",
-        height=150,
-        placeholder="Example: What is Operating System?"
+    question = st.text_area(
+        "Enter your question",
+        height=150
     )
-    
 
     if st.button("Generate Explanation"):
 
-        if not subject or not topic or not user_question:
-            st.warning("Please fill Subject, Topic, and Question.")
-        else:
-            prompt = build_explanation_prompt(
-                education_level,
-                subject,
-                topic,
-                user_question
-            )
+        if not subject or not topic or not question:
 
-            with st.spinner("Thinking..."):
-                response = generate_response(prompt)
+            st.warning("Please fill all fields.")
 
-            # Save chat
-            st.session_state.chat_history.append(
-                ("You", user_question)
-            )
-            st.session_state.chat_history.append(
-                ("AI", response)
-            )
-            update_question(subject)
+            return
+
+        prompt = build_explanation_prompt(
+            education_level,
+            subject,
+            topic,
+            question
+        )
+
+        with st.spinner("Thinking..."):
+            response = generate_response(prompt)
+
+        update_question(subject)
+
+        st.session_state.chat_history.append(
+            ("You", question)
+        )
+
+        st.session_state.chat_history.append(
+            ("AI", response)
+        )
+
+        st.success("Explanation generated!")
 
 
-# QUIZ GENERATOR
-elif mode == "Quiz Generator":
+# ---------------------------------------------------
+# QUIZ GENERATOR MODE
+# ---------------------------------------------------
 
-    st.subheader("📝 Interactive Quiz Generator")
+def quiz_generator():
+
+    st.subheader("📝 Quiz Generator")
 
     difficulty = st.selectbox(
-        "Select Difficulty",
+        "Difficulty",
         ["Easy", "Medium", "Hard"]
     )
 
-    if "quiz_data" not in st.session_state:
-        st.session_state.quiz_data = None
+    # GENERATE QUIZ BUTTON
+    if st.button("Generate Quiz"):
 
-    if "quiz_answers" not in st.session_state:
+        if not subject or not topic:
+
+            st.warning("Enter subject and topic")
+            return
+
+        prompt = build_quiz_prompt(
+            education_level,
+            subject,
+            topic,
+            difficulty
+        )
+
+        with st.spinner("Generating quiz..."):
+            response = generate_response(prompt)
+
+        quiz = parse_quiz(response)
+
+        if not quiz:
+            st.error("Quiz generation failed")
+            return
+
+        update_quiz(subject)
+
+        st.session_state.quiz_data = quiz
         st.session_state.quiz_answers = {}
-
-    if "quiz_submitted" not in st.session_state:
         st.session_state.quiz_submitted = False
 
 
-    # Generate Quiz
-    if st.button("🚀 Generate Quiz"):
+    # DISPLAY QUIZ
+    if st.session_state.quiz_data:
 
-        if not subject or not topic:
-            st.warning("Please enter Subject and Topic.")
-        else:
+        st.divider()
+        st.subheader("Answer Questions")
 
-            prompt = build_quiz_prompt(
-                education_level,
-                subject,
-                topic,
-                difficulty
+        for i, q in enumerate(st.session_state.quiz_data):
+
+            selected = st.radio(
+                f"Q{i+1}. {q['question']}",
+                q["options"],
+                key=f"quiz_{i}",
+                disabled=st.session_state.quiz_submitted
             )
 
-            with st.spinner("Generating Quiz..."):
-                response = generate_response(prompt)
+            st.session_state.quiz_answers[i] = selected
 
-            update_quiz(subject)
-
-            # Parse quiz
-            st.session_state.quiz_data = parse_quiz(response)
-            st.session_state.quiz_answers = {}
-            st.session_state.quiz_submitted = False
-
-
-    # Display quiz
-if st.session_state.quiz_data:
-
-    st.markdown("---")
-    st.markdown("## 📋 Answer the Questions")
-
-    for i, q in enumerate(st.session_state.quiz_data):
-
-        correct_answer = q["answer"]
-
-        # Disable radio after submission
-        disabled_state = st.session_state.quiz_submitted
-
-        answer = st.radio(
-            f"Q{i+1}: {q['question']}",
-            q["options"],
-            key=f"quiz_{i}",
-            disabled=disabled_state
-        )
-
-        st.session_state.quiz_answers[i] = answer
-
-        # Show feedback after submission
-        if st.session_state.quiz_submitted:
-
-            user_answer = st.session_state.quiz_answers.get(i, "")
-
-            if user_answer.startswith(correct_answer):
-
-                st.success(f"✅ Correct")
-
-            else:
-
-                st.error(f"❌ Wrong")
-
-            # Always show correct answer
-            st.info(f"✔ Correct Answer: {correct_answer}")
-
-
-    # Submit Button
-    if not st.session_state.quiz_submitted:
-
-        if st.button("✅ Submit Quiz"):
-
-            score = 0
-
-            for i, q in enumerate(st.session_state.quiz_data):
+            if st.session_state.quiz_submitted:
 
                 correct = q["answer"]
-                user_answer = st.session_state.quiz_answers.get(i, "")
 
-                if user_answer.startswith(correct):
-                    score += 1
-
-            total = len(st.session_state.quiz_data)
-
-            st.session_state.quiz_submitted = True
-            st.session_state.quiz_score = score
-            st.session_state.quiz_total = total
-
-            st.rerun()
+                if selected == correct:
+                    st.success("Correct ✅")
+                else:
+                    st.error(f"Wrong ❌ | Correct: {correct}")
 
 
-# Show result summary
-if st.session_state.quiz_submitted:
+        # SUBMIT BUTTON
+        if not st.session_state.quiz_submitted:
 
-    st.markdown("---")
+            if st.button("Submit Quiz"):
 
-    score = st.session_state.quiz_score
-    total = st.session_state.quiz_total
+                score = 0
 
-    st.success(f"🎯 Your Score: {score}/{total}")
+                for i, q in enumerate(st.session_state.quiz_data):
 
-    percentage = (score / total) * 100
+                    if st.session_state.quiz_answers.get(i) == q["answer"]:
+                        score += 1
 
-    if percentage >= 80:
-        st.balloons()
-        st.success("Excellent Performance! 🌟")
+                total = len(st.session_state.quiz_data)
 
-    elif percentage >= 50:
-        st.info("Good Job! Keep practicing 👍")
+                st.session_state.quiz_score = score
+                st.session_state.quiz_total = total
+                st.session_state.quiz_submitted = True
 
-    else:
-        st.warning("Keep learning! You can improve 📚")
+                st.rerun()
 
-    
-# NOTES GENERATOR
-elif mode == "Notes Generator":
 
-    st.subheader("📖 Generate Study Notes")
+        # RESULT DISPLAY
+        if st.session_state.quiz_submitted:
+
+            score = st.session_state.quiz_score
+            total = st.session_state.quiz_total
+
+            percent = (score / total) * 100
+
+            st.divider()
+
+            st.success(f"Score: {score}/{total} ({percent:.0f}%)")
+
+            if percent >= 80:
+                st.balloons()
+                st.success("Excellent 🌟")
+
+            elif percent >= 50:
+                st.info("Good job 👍")
+
+            else:
+                st.warning("Keep practicing 📚")
+
+
+# ---------------------------------------------------
+# NOTES GENERATOR MODE
+# ---------------------------------------------------
+
+def notes_generator():
+
+    st.subheader("📖 Notes Generator")
 
     if st.button("Generate Notes"):
 
         if not subject or not topic:
-            st.warning("Please fill Subject and Topic.")
-        else:
-            prompt = build_notes_prompt(
-                education_level,
-                subject,
-                topic
-            )
 
-            with st.spinner("Generating notes..."):
-                response = generate_response(prompt)
-            update_notes(subject)
-            st.session_state.chat_history.append(
-                ("AI Notes", response)
-            )
-            st.download_button(
-            label="⬇ Download Notes",
-            data=response,
-            file_name=f"{subject}_{topic}_notes.txt",
-            mime="text/plain"
+            st.warning("Enter subject and topic")
+            return
+
+        prompt = build_notes_prompt(
+            education_level,
+            subject,
+            topic
         )
 
+        with st.spinner("Generating notes..."):
+            notes = generate_response(prompt)
 
-# -------------------------
-# CHAT HISTORY DISPLAY
-# -------------------------
+        update_notes(subject)
+
+        st.session_state.chat_history.append(
+            ("AI Notes", notes)
+        )
+
+        st.download_button(
+            "Download Notes",
+            notes,
+            f"{subject}_{topic}.txt"
+        )
+
+        st.success("Notes generated!")
+
+
+# ---------------------------------------------------
+# ROUTING BASED ON MODE
+# ---------------------------------------------------
+
+if mode == "Doubt Solver":
+    doubt_solver()
+
+elif mode == "Quiz Generator":
+    quiz_generator()
+
+elif mode == "Notes Generator":
+    notes_generator()
+
+
+# ---------------------------------------------------
+# CHAT HISTORY
+# ---------------------------------------------------
 
 st.divider()
-
-st.subheader("💬 Study History")
+st.subheader("📜 Study History")
 
 if st.session_state.chat_history:
 
-    for sender, message in reversed(st.session_state.chat_history):
+    for sender, msg in reversed(st.session_state.chat_history):
 
         if sender == "You":
-            st.markdown(f"**🧑 You:** {message}")
+            st.markdown(f"**You:** {msg}")
+
         else:
-            st.markdown(f"**🤖 {sender}:**")
-            st.markdown(message)
+            st.markdown(f"**{sender}:**")
+            st.write(msg)
             st.divider()
 
 else:
-    st.info("No history yet. Ask a question to begin.")
+    st.info("No history yet.")
 
-# -------------------------
-# CLEAR HISTORY BUTTON
-# -------------------------
 
-if st.button("🗑 Clear History"):
+# CLEAR HISTORY
+
+if st.button("Clear History"):
+
     st.session_state.chat_history = []
+
     st.success("History cleared!")
-
-
-st.sidebar.write(f"Logged in as: {st.session_state.username}")
-
-if st.sidebar.button("Logout"):
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.rerun()
