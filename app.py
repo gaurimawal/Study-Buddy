@@ -217,7 +217,6 @@ def quiz_generator():
     if st.button("Generate Quiz"):
 
         if not subject or not topic:
-
             st.warning("Enter subject and topic")
             return
 
@@ -239,36 +238,48 @@ def quiz_generator():
 
         update_quiz(subject)
 
+        # Reset session state
         st.session_state.quiz_data = quiz
         st.session_state.quiz_answers = {}
         st.session_state.quiz_submitted = False
+        st.session_state.quiz_score = 0
+        st.session_state.quiz_total = 0
 
 
     # DISPLAY QUIZ
     if st.session_state.quiz_data:
 
         st.divider()
-        st.subheader("Answer Questions")
+        st.subheader("📋 Answer Questions")
 
         for i, q in enumerate(st.session_state.quiz_data):
 
+            options = q["options"]
+            correct_letter = q["answer"].strip()
+
+            # Map correct letter to full option text
+            correct_option = None
+            for opt in options:
+                if opt.startswith(correct_letter):
+                    correct_option = opt
+                    break
+
             selected = st.radio(
                 f"Q{i+1}. {q['question']}",
-                q["options"],
+                options,
                 key=f"quiz_{i}",
                 disabled=st.session_state.quiz_submitted
             )
 
             st.session_state.quiz_answers[i] = selected
 
+            # SHOW FEEDBACK AFTER SUBMIT
             if st.session_state.quiz_submitted:
 
-                correct = q["answer"]
-
-                if selected == correct:
-                    st.success("Correct ✅")
+                if selected == correct_option:
+                    st.success("✅ Correct")
                 else:
-                    st.error(f"Wrong ❌ | Correct: {correct}")
+                    st.error(f"❌ Wrong | Correct: {correct_option}")
 
 
         # SUBMIT BUTTON
@@ -280,8 +291,20 @@ def quiz_generator():
 
                 for i, q in enumerate(st.session_state.quiz_data):
 
-                    if st.session_state.quiz_answers.get(i) == q["answer"]:
+                    options = q["options"]
+                    correct_letter = q["answer"].strip()
+
+                    correct_option = None
+                    for opt in options:
+                        if opt.startswith(correct_letter):
+                            correct_option = opt
+                            break
+
+                    selected = st.session_state.quiz_answers.get(i)
+
+                    if selected == correct_option:
                         score += 1
+
 
                 total = len(st.session_state.quiz_data)
 
@@ -302,17 +325,17 @@ def quiz_generator():
 
             st.divider()
 
-            st.success(f"Score: {score}/{total} ({percent:.0f}%)")
+            st.success(f"🎯 Score: {score}/{total} ({percent:.0f}%)")
 
             if percent >= 80:
                 st.balloons()
-                st.success("Excellent 🌟")
+                st.success("🌟 Excellent Performance!")
 
             elif percent >= 50:
-                st.info("Good job 👍")
+                st.info("👍 Good job! Keep improving.")
 
             else:
-                st.warning("Keep practicing 📚")
+                st.warning("📚 Keep practicing. You will improve!")
 
 
 # ---------------------------------------------------
