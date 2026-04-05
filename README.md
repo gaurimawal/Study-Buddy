@@ -154,3 +154,6 @@ This project can be deployed on:
 - Admin panel
 
 ---
+
+
+Deployment Link: https://ai-studybuddy-ay9rubywncsbuxkdrtydwb.streamlit.app/
